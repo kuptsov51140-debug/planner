@@ -31,6 +31,7 @@ function newForm(name, ph, btn, cls, endDef) {
 
 VIEW.goals = function () {
   const N = dim();
+  const gs = ((new Date(S.y, S.m, 1).getDay() + 6) % 7) + 1;
   const vis = S.blocks.filter(overlaps);
   const b = vis.find((x) => x.id === S.sel) || vis[0];
   const cards = vis.map((bl) => {
@@ -57,10 +58,10 @@ VIEW.goals = function () {
         const d = i + 1, k = key(b.id, s.id, d), x = ds(d);
         const out = !inRange(s, x), f = x > TODAY, on = !!S.done[k];
         const st = out ? 'вне срока' : f ? 'впереди' : on ? 'сделано' : 'пропущено';
-        return `<button class="c ${out ? 'o' : f ? 'f' : ''} ${on ? 'd' : ''} ${x === TODAY ? 't' : ''}" ${out || f ? 'disabled' : ''} data-act="cell" data-k="${k}" aria-pressed="${on}" aria-label="${esc(s.n)}, ${d} ${MON[S.m]}: ${st}"></button>`;
+        return `<button class="c ${out ? 'o' : f ? 'f' : ''} ${on ? 'd' : ''} ${x === TODAY ? 't' : ''}" ${out || f ? 'disabled' : ''} data-act="cell" data-d="${d}" data-k="${k}" aria-pressed="${on}" aria-label="${esc(s.n)}, ${d} ${MON[S.m]}: ${st}"></button>`;
       }).join('');
       return `<div class="grid"><div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:4px"><span style="flex:1">${esc(s.n)}</span><button class="x" style="font-size:16px;width:32px;height:32px" data-act="delsub" data-b="${b.id}" data-s="${s.id}" aria-label="Удалить подцель ${esc(s.n)}">&times;</button></div>${dateEd(s, b.id, s.id, s.n)}</div>
-<div class="days" style="${cols}">${cells}</div>
+<div class="days" style="${cols};--gs:${gs}">${cells}</div>
 <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><span class="mono" style="font-size:13px">${dn} / <input type="number" min="1" value="${s.t}" data-chg="plan" data-b="${b.id}" data-s="${s.id}" aria-label="План на месяц: ${esc(s.n)}" style="width:52px;height:28px;padding:0 4px;font-family:var(--mono);font-size:13px"></span>
 <span class="bar" style="width:100%;height:4px"><i style="width:${Math.min(100, Math.round(dn / s.t * 100))}%"></i></span>${remHtml(s)}</div></div>`;
     }).join('');
@@ -74,9 +75,9 @@ VIEW.goals = function () {
 <div class="row"><button class="x" data-act="mon" data-i="-1" aria-label="Предыдущий месяц">&lsaquo;</button><b>${MONTHS[S.m]} ${S.y}</b><button class="x" data-act="mon" data-i="1" aria-label="Следующий месяц">&rsaquo;</button></div></div>
 <div class="row" style="gap:16px;font-size:13px;color:var(--muted)"><span>&#9632; <span style="color:var(--green)">сделано</span></span><span>&#9632; <span style="color:#D9B8A8">пропущено</span></span><span>&#9633; впереди</span><span>&#9632; <span style="color:#D6CEB9">вне срока</span></span></div></div>
 <div class="scroll"><div style="min-width:1000px;display:flex;flex-direction:column;gap:10px">
-<div class="grid" style="border-bottom:1px solid var(--line);padding-bottom:6px;align-items:end"><span class="cap">Подцель и срок</span><div class="days" style="${cols}">${head}</div><span class="cap" style="text-align:right">План</span></div>
-${rows || '<div class="sub" style="margin:0">В этом месяце у цели нет активных подцелей.</div>'}
-<div class="grid" style="border-top:1px solid var(--line);padding-top:10px"><span style="font-size:13px;color:var(--muted)">Выполнено за день</span><div class="days" style="${cols}">${tot}</div><span></span></div></div></div>
+<div class="grid hd" style="border-bottom:1px solid var(--line);padding-bottom:6px;align-items:end"><span class="cap">Подцель и срок</span><div class="days" style="${cols}">${head}</div><span class="cap" style="text-align:right">План</span></div>
+<div class="mob wdh"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>${rows || '<div class="sub" style="margin:0">В этом месяце у цели нет активных подцелей.</div>'}
+<div class="grid hd" style="border-top:1px solid var(--line);padding-top:10px"><span style="font-size:13px;color:var(--muted)">Выполнено за день</span><div class="days" style="${cols}">${tot}</div><span></span></div></div></div>
 ${newForm('addsub', ['Новая подцель', 'Например «Зарядка»'], 'Добавить подцель', 's', addDays(TODAY, 30))}</section>`;
   }
   const yd = Math.round((NOW - new Date(NOW.getFullYear(), 0, 1)) / 864e5) + 1;

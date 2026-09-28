@@ -37,9 +37,9 @@ VIEW.wo = function () {
   const W = S.wo, cur = curSession() || { ex: [] };
   const chips = W.sessions.slice().sort((a, b) => a.date < b.date ? -1 : 1).map((s) => `<button class="pill ${s.date === W.sel ? 'on' : ''}" data-act="wsel" data-v="${s.date}" aria-pressed="${s.date === W.sel}">${dlabel(s.date)}</button>`).join('');
   const blocks = cur.ex.map((ex) => `<div class="card" style="padding:20px 24px;gap:8px">
-<div style="display:flex;justify-content:space-between;align-items:center;gap:16px"><h2 style="font-size:22px">${esc(ex.name)}</h2>
+<div class="eh" style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px"><h2 style="font-size:22px">${esc(ex.name)}</h2>
 <div class="row" style="gap:16px"><span style="font-size:13px;color:var(--muted)">за день: <span class="mono" style="color:var(--ink)" id="avg${ex.id}">${dayAvgText(ex.sets)}</span></span><button class="txt" data-act="delex" data-id="${ex.id}">Убрать</button></div></div>
-<div class="sets cap" style="border-bottom:1px solid var(--line);padding-bottom:6px"><span>Подход</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
+<div class="sets cap" style="border-bottom:1px solid var(--line);padding-bottom:6px"><span>№</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
 ${ex.sets.map((st, i) => `<div class="sets"><span class="mono" style="color:var(--muted)">${i + 1}</span>
 <input type="text" inputmode="decimal" value="${esc(st.w)}" data-chg="setw" data-id="${ex.id}" data-i="${i}" aria-label="${esc(ex.name)}, подход ${i + 1}: вес, кг">
 <input type="text" inputmode="numeric" value="${esc(st.r)}" data-chg="setr" data-id="${ex.id}" data-i="${i}" aria-label="${esc(ex.name)}, подход ${i + 1}: повторы">
