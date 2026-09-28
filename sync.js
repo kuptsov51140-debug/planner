@@ -17,7 +17,7 @@ let pushTimer = null;
 function scheduleSync() {
   if (!syncReady() || SC.auto === false) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(syncPush, 1500);
+  pushTimer = setTimeout(() => { pushTimer = null; syncPush(); }, 1500);
 }
 
 async function syncPush() {
@@ -37,23 +37,36 @@ async function syncPush() {
   SC.busy = false; saveSC(); rerenderSync();
 }
 
-async function syncPull() {
+// force=true: кнопка «Подключиться / получить» — всегда берём данные из облака.
+// Иначе (авто) берём их только если они новее локальных и у нас нет неотправленных правок;
+// если локальные новее — отправляем их.
+async function syncPull(force) {
   if (!syncReady() || SC.busy) return;
   SC.busy = true; SC.status = 'pull'; rerenderSync();
+  let applied = false, pushAfter = false;
   try {
     const res = await fetch(JB + '/' + SC.binId + '/latest', { headers: { 'X-Master-Key': SC.apiKey } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (data && data.record && typeof data.record === 'object') {
-      S = data.record;
-      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e2) { /* storage unavailable */ }
+    const remote = data && data.record;
+    if (remote && typeof remote === 'object') {
+      const localT = S.updatedAt || 0, remoteT = remote.updatedAt || 0;
+      if (force || (remoteT > localT && !pushTimer)) {
+        S = Object.assign({}, remote, { tab: S.tab, sel: S.sel, y: S.y, m: S.m });
+        lastHash = dataHash();
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e2) { /* storage unavailable */ }
+        applied = true;
+      } else if (localT > remoteT && !pushTimer) {
+        pushAfter = true;
+      }
     }
     SC.status = 'ok'; SC.last = Date.now();
   } catch (e) {
     SC.status = 'err'; SC.err = String(e.message || e);
   }
   SC.busy = false; saveSC();
-  if (typeof render === 'function') render();
+  if (typeof render === 'function' && (applied || S.tab === 'sync')) render();
+  if (pushAfter) syncPush();
 }
 
 async function syncCreate() {
@@ -75,12 +88,12 @@ async function syncCreate() {
   SC.busy = false; saveSC(); rerenderSync();
 }
 
-// Раз в 25 секунд, пока открыта вкладка синхронизации, тихо подтягиваем
-// свежие данные — чтобы увидеть с телефона то, что только что сохранили
-// на компьютере (и наоборот), без ручного нажатия.
-setInterval(() => {
-  if (S.tab === 'sync' && syncReady() && !document.hidden) syncPull();
-}, 25000);
+// Подтягиваем свежие данные при открытии, при возврате на вкладку и раз в 25 секунд.
+const autoPull = () => { if (syncReady() && SC.auto !== false && !document.hidden) syncPull(false); };
+setInterval(autoPull, 25000);
+document.addEventListener('visibilitychange', autoPull);
+window.addEventListener('focus', autoPull);
+setTimeout(autoPull, 300);
 
 function syncLine() {
   if (SC.busy) return (SC.status === 'pull' ? 'Получение данных…' : 'Отправка данных…');
@@ -119,7 +132,7 @@ VIEW.sync = function () {
 };
 
 ACT.synccreate = () => { syncCreate(); };
-ACT.syncpull = () => { syncPull(); };
+ACT.syncpull = () => { syncPull(true); };
 ACT.syncpush = () => { syncPush(); };
 CHG.synckey = (t) => { SC.apiKey = t.value.trim(); saveSC(); };
 CHG.syncbin = (t) => { SC.binId = t.value.trim(); saveSC(); };

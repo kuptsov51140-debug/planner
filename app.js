@@ -51,10 +51,15 @@ function seed() {
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 if (!S) S = seed();
+// Отпечаток данных без служебных полей интерфейса: вкладка, месяц и выбранная цель
+// не считаются изменением, чтобы простая навигация не запускала отправку в облако.
+const dataHash = () => { const { tab, sel, y, m, updatedAt, ...rest } = S; return JSON.stringify(rest); };
+let lastHash = null;
 const save = () => {
-  S.updatedAt = Date.now();
+  const h = dataHash(), changed = h !== lastHash;
+  if (changed) { lastHash = h; S.updatedAt = Date.now(); }
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
-  if (typeof scheduleSync === 'function') scheduleSync();
+  if (changed && typeof scheduleSync === 'function') scheduleSync();
 };
 
 const ACT = {}, CHG = {}, SUB = {}, VIEW = {};
@@ -81,3 +86,4 @@ const ACT = {}, CHG = {}, SUB = {}, VIEW = {};
   });
   if (S.nb == null || S.nb < nb) S.nb = nb;
 })();
+lastHash = dataHash();
