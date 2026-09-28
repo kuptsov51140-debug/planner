@@ -24,3 +24,8 @@ document.addEventListener('submit', (e) => {
   save(); render();
 });
 render();
+
+// Установка как приложение: сервис-воркер даёт работу без интернета.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* не критично */ });
+}
