@@ -49,9 +49,11 @@ ${ex.sets.map((st, i) => `<div class="sets"><span class="mono" style="color:var(
 <div class="two"><section style="display:flex;flex-direction:column;gap:20px">
 <div class="row" style="justify-content:space-between"><div class="row">${chips}</div>
 <form class="row" data-sub="addsess" style="flex-wrap:nowrap"><input type="date" name="d" aria-label="Дата новой тренировки"><button class="btn ghost" type="submit">Новая тренировка</button></form></div>
+${curSession() ? `<div class="row" style="justify-content:space-between"><span class="sub" style="margin:0">${dlabel(W.sel)} · упражнений: ${cur.ex.length}</span><button class="txt danger" data-act="delsess">Удалить тренировку</button></div>` : ''}
 ${cur.ex.length ? blocks : '<div style="padding:28px;border:1px dashed #B9AF98;border-radius:8px;color:var(--muted)">В этот день упражнений пока нет — добавьте первое ниже.</div>'}
 <form data-sub="addex" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Упражнение из списка<select name="e" style="text-transform:none;letter-spacing:0">${exOptionsHtml(W.pick)}</select></label><button class="btn" type="submit">Добавить упражнение</button></form>
-<form data-sub="addcustom" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Нет в списке? Своё упражнение<input type="text" name="n" placeholder="Название" style="text-transform:none;letter-spacing:0"></label><button class="btn ghost" type="submit">Добавить своё</button></form>
+<form data-sub="addcustom" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Нет в списке? Своё упражнение<input type="text" name="n" placeholder="Название" style="text-transform:none;letter-spacing:0"></label><div class="row" style="flex-wrap:nowrap"><button class="btn ghost" type="submit">Добавить своё</button><button class="btn ghost" type="button" data-act="exedit" aria-expanded="${exEdit}" style="display:inline-flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>${exEdit ? 'Закрыть список' : 'Список'}</button></div></form>
+${exEditHtml()}
 </section>
 <aside class="card"><div><h2>Средние показатели</h2></div>${periodHtml('wo')}<div class="kpi"><div><span class="cap">Тренировок</span><b>${inPeriod().filter((s) => s.ex.length).length}</b></div><div><span class="cap">Упражнений</span><b>${new Set(inPeriod().flatMap((s) => s.ex.map((e) => e.name))).size}</b></div></div>
 <div class="st cap" style="min-height:0;padding-bottom:6px;border-bottom:1px solid var(--line)"><span>Упражнение</span><span>Подх.</span><span>Ср. вес</span><span>Ср. повт.</span></div>
@@ -59,6 +61,13 @@ ${cur.ex.length ? blocks : '<div style="padding:28px;border:1px dashed #B9AF98;b
 };
 
 ACT.wsel = (t) => { S.wo.sel = t.dataset.v; };
+ACT.delsess = () => {
+  const s = curSession(); if (!s) return;
+  if (s.ex.length && !confirm('Удалить тренировку за ' + dlabel(s.date) + ' вместе с ' + s.ex.length + ' упр.?')) return;
+  S.wo.sessions = S.wo.sessions.filter((x) => x !== s);
+  const left = S.wo.sessions.map((x) => x.date).sort();
+  S.wo.sel = left.length ? left[left.length - 1] : TODAY;
+};
 ACT.delex = (t) => { const s = curSession(); s.ex = s.ex.filter((e) => e.id !== +t.dataset.id); };
 ACT.delset = (t) => { findEx(+t.dataset.id).sets.splice(+t.dataset.i, 1); };
 ACT.addset = (t) => { const e = findEx(+t.dataset.id), l = e.sets[e.sets.length - 1] || { w: '', r: '' }; e.sets.push({ w: l.w, r: l.r }); };
@@ -73,6 +82,7 @@ SUB.addcustom = (f) => {
   const n = f.n.value.trim(); if (!n) return;
   const c = S.wo.catalog = S.wo.catalog || [];
   if (!EX_BUILTIN.has(n) && !c.includes(n)) c.push(n);
+  if (S.wo.hidden) S.wo.hidden = S.wo.hidden.filter((h) => h !== n);
   S.wo.pick = n;
   const s = curSession(); if (s) s.ex.push({ id: S.wo.nid++, name: n, sets: [{ w: '', r: '' }] });
 };

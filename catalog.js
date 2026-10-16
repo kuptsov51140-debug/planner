@@ -15,9 +15,10 @@ const EX_BUILTIN = new Set(EX_GROUPS.flatMap((g) => g[1]));
 
 // Опции для <select>: встроенные группы + «Свои» (всё из S.wo.catalog, чего нет во встроенных)
 function exOptionsHtml(selected) {
+  const hid = new Set((S.wo && S.wo.hidden) || []);
   const opt = (o) => `<option ${o === selected ? 'selected' : ''}>${esc(o)}</option>`;
   const own = (S.wo.catalog || []).filter((o) => !EX_BUILTIN.has(o));
-  const groups = EX_GROUPS.map((g) => `<optgroup label="${g[0]}">${g[1].map(opt).join('')}</optgroup>`);
+  const groups = EX_GROUPS.map((g) => [g[0], g[1].filter((o) => !hid.has(o))]).filter((g) => g[1].length).map((g) => `<optgroup label="${g[0]}">${g[1].map(opt).join('')}</optgroup>`);
   if (own.length) groups.unshift(`<optgroup label="Свои">${own.map(opt).join('')}</optgroup>`);
   return groups.join('');
 }
