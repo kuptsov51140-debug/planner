@@ -2,16 +2,20 @@
 const curSession = () => S.wo.sessions.find((s) => s.date === S.wo.sel);
 const findEx = (id) => { const s = curSession(); return s && s.ex.find((e) => e.id === id); };
 
-function avgOf(sets) {
+// Упражнение «с собственным весом»: вес не вводится, считаются только повторы.
+// Старые записи без флага считаем такими, если во всех подходах вес указан как 0.
+const isBw = (ex) => ex.bw === true || (ex.bw === undefined && ex.sets.length > 0 && ex.sets.every((s) => s.w !== '' && !(num(s.w) > 0)));
+
+function avgOf(sets, bw) {
   let ws = 0, wn = 0, rs = 0, rn = 0;
   sets.forEach((st) => {
     const w = num(st.w), r = num(st.r);
-    if (isFinite(w) && w > 0) { ws += w; wn++; }
+    if (!bw && isFinite(w) && w > 0) { ws += w; wn++; }
     if (isFinite(r)) { rs += r; rn++; }
   });
   return { ws, wn, rs, rn };
 }
-const dayAvgText = (sets) => { const a = avgOf(sets); return a.rn ? (a.wn ? fmt1(a.ws / a.wn) + ' кг' : 'своё') + ' × ' + fmt1(a.rs / a.rn) : '—'; };
+const dayAvgText = (sets, bw) => { const a = avgOf(sets, bw); return a.rn ? (a.wn ? fmt1(a.ws / a.wn) + ' кг' : 'без веса') + ' × ' + fmt1(a.rs / a.rn) : '—'; };
 
 const inPeriod = () => { const { from, to } = rangeOf(S.wo.range); return S.wo.sessions.filter((s) => s.date >= from && s.date <= to); };
 
@@ -19,18 +23,18 @@ function statsHtml() {
   const agg = {};
   inPeriod().forEach((ss) => ss.ex.forEach((ex) => {
     const a = agg[ex.name] || (agg[ex.name] = { n: 0, ws: 0, wn: 0, rs: 0, rn: 0 });
-    const v = avgOf(ex.sets);
+    const v = avgOf(ex.sets, isBw(ex));
     a.ws += v.ws; a.wn += v.wn; a.rs += v.rs; a.rn += v.rn; a.n += v.rn;
   }));
   return Object.keys(agg).sort().map((k) => {
     const a = agg[k];
-    return `<div class="st"><span>${esc(k)}</span><span style="color:var(--muted)">${a.n}</span><span style="font-weight:500">${a.wn ? fmt1(a.ws / a.wn) : a.n ? 'своё' : '—'}</span><span style="font-weight:500">${a.rn ? fmt1(a.rs / a.rn) : '—'}</span></div>`;
+    return `<div class="st"><span>${esc(k)}</span><span style="color:var(--muted)">${a.n}</span><span style="font-weight:500">${a.wn ? fmt1(a.ws / a.wn) : a.n ? '<small>без веса</small>' : '—'}</span><span style="font-weight:500">${a.rn ? fmt1(a.rs / a.rn) : '—'}</span></div>`;
   }).join('') || '<div class="sub" style="margin:12px 0">В этом периоде тренировок нет.</div>';
 }
 function refreshStats() {
   const el = $('#stats'); if (el) el.innerHTML = statsHtml();
   const s = curSession();
-  if (s) s.ex.forEach((ex) => { const e = $('#avg' + ex.id); if (e) e.textContent = dayAvgText(ex.sets); });
+  if (s) s.ex.forEach((ex) => { const e = $('#avg' + ex.id); if (e) e.textContent = dayAvgText(ex.sets, isBw(ex)); });
 }
 
 VIEW.wo = function () {
@@ -38,10 +42,10 @@ VIEW.wo = function () {
   const chips = W.sessions.slice().sort((a, b) => a.date < b.date ? -1 : 1).map((s) => `<button class="pill ${s.date === W.sel ? 'on' : ''}" data-act="wsel" data-v="${s.date}" aria-pressed="${s.date === W.sel}">${dlabel(s.date)}</button>`).join('');
   const blocks = cur.ex.map((ex) => `<div class="card" style="padding:20px 24px;gap:8px">
 <div class="eh" style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px"><h2 style="font-size:22px">${esc(ex.name)}</h2>
-<div class="row" style="gap:16px"><span style="font-size:13px;color:var(--muted)">за день: <span class="mono" style="color:var(--ink)" id="avg${ex.id}">${dayAvgText(ex.sets)}</span></span><button class="txt" data-act="delex" data-id="${ex.id}">Убрать</button></div></div>
-<div class="sets cap" style="border-bottom:1px solid var(--line);padding-bottom:6px"><span>№</span><span>Вес, кг</span><span>Повторы</span><span></span></div>
-${ex.sets.map((st, i) => `<div class="sets"><span class="mono" style="color:var(--muted)">${i + 1}</span>
-<input type="text" inputmode="decimal" value="${esc(st.w)}" data-chg="setw" data-id="${ex.id}" data-i="${i}" aria-label="${esc(ex.name)}, подход ${i + 1}: вес, кг">
+<div class="row" style="gap:16px"><span style="font-size:13px;color:var(--muted)">за день: <span class="mono" style="color:var(--ink)" id="avg${ex.id}">${dayAvgText(ex.sets, isBw(ex))}</span></span><label class="bwl"><input type="checkbox" ${isBw(ex) ? 'checked' : ''} data-act="togbw" data-id="${ex.id}">С собственным весом</label><button class="txt" data-act="delex" data-id="${ex.id}">Убрать</button></div></div>
+<div class="sets cap ${isBw(ex) ? 'nw' : ''}" style="border-bottom:1px solid var(--line);padding-bottom:6px"><span>№</span>${isBw(ex) ? '' : '<span>Вес, кг</span>'}<span>Повторы</span><span></span></div>
+${ex.sets.map((st, i) => `<div class="sets ${isBw(ex) ? 'nw' : ''}"><span class="mono" style="color:var(--muted)">${i + 1}</span>
+${isBw(ex) ? '' : `<input type="text" inputmode="decimal" value="${esc(st.w)}" data-chg="setw" data-id="${ex.id}" data-i="${i}" aria-label="${esc(ex.name)}, подход ${i + 1}: вес, кг">`}
 <input type="text" inputmode="numeric" value="${esc(st.r)}" data-chg="setr" data-id="${ex.id}" data-i="${i}" aria-label="${esc(ex.name)}, подход ${i + 1}: повторы">
 <button class="x" data-act="delset" data-id="${ex.id}" data-i="${i}" aria-label="Удалить подход ${i + 1}">&times;</button></div>`).join('')}
 <div><button class="btn ghost" style="border-style:dashed;border-color:var(--green);color:var(--green)" data-act="addset" data-id="${ex.id}">+ подход</button></div></div>`).join('');
@@ -57,10 +61,11 @@ ${exEditHtml()}
 </section>
 <aside class="card"><div><h2>Средние показатели</h2></div>${periodHtml('wo')}<div class="kpi"><div><span class="cap">Тренировок</span><b>${inPeriod().filter((s) => s.ex.length).length}</b></div><div><span class="cap">Упражнений</span><b>${new Set(inPeriod().flatMap((s) => s.ex.map((e) => e.name))).size}</b></div></div>
 <div class="st cap" style="min-height:0;padding-bottom:6px;border-bottom:1px solid var(--line)"><span>Упражнение</span><span>Подх.</span><span>Ср. вес</span><span>Ср. повт.</span></div>
-<div id="stats">${statsHtml()}</div><div style="font-size:12px;color:var(--muted);line-height:1.5">Средний вес считается по подходам с весом больше нуля; «своё» — упражнения с собственным весом.</div></aside></div>`;
+<div id="stats">${statsHtml()}</div><div style="font-size:12px;color:var(--muted);line-height:1.5">Средний вес считается только по подходам с весом. У упражнений с отметкой «С собственным весом» вес не вводится, там показано «без веса».</div></aside></div>`;
 };
 
 ACT.wsel = (t) => { S.wo.sel = t.dataset.v; };
+ACT.togbw = (t) => { const e = findEx(+t.dataset.id); if (e) e.bw = !isBw(e); };
 ACT.delsess = () => {
   const s = curSession(); if (!s) return;
   if (s.ex.length && !confirm('Удалить тренировку за ' + dlabel(s.date) + ' вместе с ' + s.ex.length + ' упр.?')) return;
