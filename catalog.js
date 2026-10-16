@@ -13,12 +13,31 @@ const EX_GROUPS = [
 ];
 const EX_BUILTIN = new Set(EX_GROUPS.flatMap((g) => g[1]));
 
-// Опции для <select>: встроенные группы + «Свои» (всё из S.wo.catalog, чего нет во встроенных)
+const EX_OWN = 'Свои';   // категория для упражнений без части тела (всегда внизу списка)
+let exCat = EX_OWN;      // выбранная категория в формах добавления
+
+// Свои упражнения пользователя и их категории (S.wo.cgroup: имя -> часть тела)
+const exOwnList = () => (S.wo.catalog || []).filter((o) => !EX_BUILTIN.has(o));
+const exCatOf = (n) => { const g = (S.wo.cgroup || {})[n]; return EX_GROUPS.some((x) => x[0] === g) ? g : EX_OWN; };
+const exCatSelectHtml = () => `<select name="c" data-chg="excat" aria-label="Категория" style="text-transform:none;letter-spacing:0">${[...EX_GROUPS.map((g) => g[0]), EX_OWN].map((g) => `<option ${g === exCat ? 'selected' : ''}>${g}</option>`).join('')}</select>`;
+function exSetOwn(name, cat) {
+  const c = S.wo.catalog = S.wo.catalog || [];
+  if (!c.includes(name)) c.push(name);
+  const m = S.wo.cgroup = S.wo.cgroup || {};
+  if (cat === EX_OWN) delete m[name]; else m[name] = cat;
+}
+CHG.excat = (t) => {
+  exCat = t.value;
+  document.querySelectorAll('select[data-chg=excat]').forEach((s) => { s.value = exCat; });
+  return 'keep';
+};
+
+// Опции для <select>: части тела (встроенные + свои из этой категории), затем «Свои» внизу
 function exOptionsHtml(selected) {
   const hid = new Set((S.wo && S.wo.hidden) || []);
   const opt = (o) => `<option ${o === selected ? 'selected' : ''}>${esc(o)}</option>`;
-  const own = (S.wo.catalog || []).filter((o) => !EX_BUILTIN.has(o));
-  const groups = EX_GROUPS.map((g) => [g[0], g[1].filter((o) => !hid.has(o))]).filter((g) => g[1].length).map((g) => `<optgroup label="${g[0]}">${g[1].map(opt).join('')}</optgroup>`);
-  if (own.length) groups.unshift(`<optgroup label="Свои">${own.map(opt).join('')}</optgroup>`);
-  return groups.join('');
+  const own = exOwnList();
+  const rows = EX_GROUPS.map((g) => [g[0], [...g[1].filter((o) => !hid.has(o)), ...own.filter((o) => exCatOf(o) === g[0])]]);
+  rows.push([EX_OWN, own.filter((o) => exCatOf(o) === EX_OWN)]);
+  return rows.filter((r) => r[1].length).map((r) => `<optgroup label="${r[0]}">${r[1].map(opt).join('')}</optgroup>`).join('');
 }
