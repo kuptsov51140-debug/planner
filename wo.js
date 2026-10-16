@@ -65,7 +65,11 @@ ${exEditHtml()}
 };
 
 ACT.wsel = (t) => { S.wo.sel = t.dataset.v; };
-ACT.togbw = (t) => { const e = findEx(+t.dataset.id); if (e) e.bw = !isBw(e); };
+ACT.togbw = (t) => {
+  const e = findEx(+t.dataset.id); if (!e) return;
+  e.bw = !isBw(e);
+  (S.wo.bwdef = S.wo.bwdef || {})[e.name] = e.bw;  // запоминаем выбор для этого упражнения
+};
 ACT.delsess = () => {
   const s = curSession(); if (!s) return;
   if (s.ex.length && !confirm('Удалить тренировку за ' + dlabel(s.date) + ' вместе с ' + s.ex.length + ' упр.?')) return;
@@ -88,6 +92,6 @@ SUB.addcustom = (f) => {
   if (!EX_BUILTIN.has(n)) exSetOwn(n, f.c.value);
   if (S.wo.hidden) S.wo.hidden = S.wo.hidden.filter((h) => h !== n);
   S.wo.pick = n;
-  const s = curSession(); if (s) s.ex.push({ id: S.wo.nid++, name: n, sets: [{ w: '', r: '' }] });
+  const s = curSession(); if (s) s.ex.push(newEx(n));
 };
-SUB.addex = (f) => { S.wo.pick = f.e.value; const s = curSession(); if (s) s.ex.push({ id: S.wo.nid++, name: f.e.value, sets: [{ w: '', r: '' }] }); };
+SUB.addex = (f) => { S.wo.pick = f.e.value; const s = curSession(); if (s) s.ex.push(newEx(f.e.value)); };
