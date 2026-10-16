@@ -109,6 +109,7 @@ function syncLine() {
 VIEW.sync = function () {
   const ready = syncReady();
   return `<header><h1>Синхронизация</h1><div class="sub">Общее облачное хранилище на jsonbin.io связывает данные между устройствами. Настройте один раз с одинаковым ключом и ID на каждом устройстве.</div></header>
+${themeCardHtml()}
 <div class="card" style="max-width:680px">
 <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)">
 <li>Откройте <b style="color:var(--ink)">jsonbin.io</b> и заведите бесплатный аккаунт.</li>
@@ -131,6 +132,15 @@ VIEW.sync = function () {
 </div>`;
 };
 
+function themeCardHtml() {
+  const cur = getTheme();
+  const opts = THEMES.map((t) => `<button type="button" class="thm ${t.id === cur ? 'on' : ''}" data-act="theme" data-v="${t.id}" aria-pressed="${t.id === cur}">
+<span class="sw" style="background:${t.bg};border-color:${t.ac}"><i style="background:${t.ac}"></i><b style="background:${t.fg}"></b></span><span>${t.name}</span></button>`).join('');
+  return `<div class="card" style="max-width:680px"><h2 style="font-size:20px">Тема оформления</h2>
+<div class="row" role="group" aria-label="Тема оформления" style="gap:10px">${opts}</div>
+<div class="sub" style="margin:0;font-size:12px">Тема запоминается отдельно на каждом устройстве.</div></div>`;
+}
+ACT.theme = (t) => { setTheme(t.dataset.v); };
 ACT.synccreate = () => { syncCreate(); };
 ACT.syncpull = () => { syncPull(true); };
 ACT.syncpush = () => { syncPush(); };
