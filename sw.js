@@ -2,8 +2,8 @@
 // Кеш нужен, чтобы приложение открывалось без интернета. Файлы приложения берём
 // сначала из сети (чтобы сразу видеть обновления), а если сети нет — из кеша.
 // Запросы к облаку синхронизации (другой домен) сюда не попадают.
-const CACHE = 'planner-v1';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'period.js', 'goals.js', 'cal.js', 'wo.js', 'sync.js', 'main.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'planner-v2';
+const FILES = ['./', 'index.html', 'style.css', 'app.js', 'period.js', 'goals.js', 'cal.js', 'catalog.js', 'wo.js', 'sync.js', 'main.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

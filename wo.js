@@ -50,8 +50,9 @@ ${ex.sets.map((st, i) => `<div class="sets"><span class="mono" style="color:var(
 <div class="row" style="justify-content:space-between"><div class="row">${chips}</div>
 <form class="row" data-sub="addsess" style="flex-wrap:nowrap"><input type="date" name="d" aria-label="Дата новой тренировки"><button class="btn ghost" type="submit">Новая тренировка</button></form></div>
 ${cur.ex.length ? blocks : '<div style="padding:28px;border:1px dashed #B9AF98;border-radius:8px;color:var(--muted)">В этот день упражнений пока нет — добавьте первое ниже.</div>'}
-<form data-sub="addex" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Упражнение из списка<select name="e" style="text-transform:none;letter-spacing:0">${W.catalog.map((o) => `<option ${o === W.pick ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label><button class="btn" type="submit">Добавить упражнение</button></form>
-<div class="sub" style="margin:0">Полный список упражнений можно дописать в массив <code>catalog</code> в файле app.js.</div></section>
+<form data-sub="addex" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Упражнение из списка<select name="e" style="text-transform:none;letter-spacing:0">${exOptionsHtml(W.pick)}</select></label><button class="btn" type="submit">Добавить упражнение</button></form>
+<form data-sub="addcustom" class="card" style="flex-direction:row;align-items:flex-end;padding:20px 24px"><label class="cap" style="flex:1;display:flex;flex-direction:column;gap:6px">Нет в списке? Своё упражнение<input type="text" name="n" placeholder="Название" style="text-transform:none;letter-spacing:0"></label><button class="btn ghost" type="submit">Добавить своё</button></form>
+</section>
 <aside class="card"><div><h2>Средние показатели</h2></div>${periodHtml('wo')}<div class="kpi"><div><span class="cap">Тренировок</span><b>${inPeriod().filter((s) => s.ex.length).length}</b></div><div><span class="cap">Упражнений</span><b>${new Set(inPeriod().flatMap((s) => s.ex.map((e) => e.name))).size}</b></div></div>
 <div class="st cap" style="min-height:0;padding-bottom:6px;border-bottom:1px solid var(--line)"><span>Упражнение</span><span>Подх.</span><span>Ср. вес</span><span>Ср. повт.</span></div>
 <div id="stats">${statsHtml()}</div><div style="font-size:12px;color:var(--muted);line-height:1.5">Средний вес считается по подходам с весом больше нуля; «своё» — упражнения с собственным весом.</div></aside></div>`;
@@ -67,5 +68,12 @@ SUB.addsess = (f) => {
   const d = f.d.value; if (!d) return;
   if (!S.wo.sessions.some((s) => s.date === d)) S.wo.sessions.push({ date: d, ex: [] });
   S.wo.sel = d;
+};
+SUB.addcustom = (f) => {
+  const n = f.n.value.trim(); if (!n) return;
+  const c = S.wo.catalog = S.wo.catalog || [];
+  if (!EX_BUILTIN.has(n) && !c.includes(n)) c.push(n);
+  S.wo.pick = n;
+  const s = curSession(); if (s) s.ex.push({ id: S.wo.nid++, name: n, sets: [{ w: '', r: '' }] });
 };
 SUB.addex = (f) => { S.wo.pick = f.e.value; const s = curSession(); if (s) s.ex.push({ id: S.wo.nid++, name: f.e.value, sets: [{ w: '', r: '' }] }); };
