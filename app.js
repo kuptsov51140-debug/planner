@@ -53,11 +53,17 @@ try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 if (!S) S = seed();
 // Отпечаток данных без служебных полей интерфейса: вкладка, месяц и выбранная цель
 // не считаются изменением, чтобы простая навигация не запускала отправку в облако.
-const dataHash = () => { const { tab, sel, y, m, updatedAt, ...rest } = S; return JSON.stringify(rest); };
+// Служебные поля экрана (выбранные даты, период, вкладка) тоже не считаются правкой данных.
+const dataHash = () => {
+  const { tab, sel, y, m, updatedAt, rev, ...rest } = S;
+  if (rest.cal) { const { date, meal, range, ...c } = rest.cal; rest.cal = c; }
+  if (rest.wo) { const { sel: ws, pick, range, ...w } = rest.wo; rest.wo = w; }
+  return JSON.stringify(rest);
+};
 let lastHash = null;
 const save = () => {
   const h = dataHash(), changed = h !== lastHash;
-  if (changed) { lastHash = h; S.updatedAt = Date.now(); }
+  if (changed) { lastHash = h; S.updatedAt = Date.now(); S.rev = (S.rev || 0) + 1; }
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
   if (changed && typeof scheduleSync === 'function') scheduleSync();
 };
