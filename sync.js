@@ -189,6 +189,7 @@ VIEW.sync = function () {
   return `<header><h1>Синхронизация</h1><div class="sub">Общее облачное хранилище на jsonbin.io связывает данные между устройствами. Настройте один раз с одинаковым ключом и ID на каждом устройстве.</div></header>
 ${themeCardHtml()}
 ${conflictCardHtml()}
+${backupCardHtml()}
 <div class="card" style="max-width:680px">
 <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)">
 <li>Откройте <b style="color:var(--ink)">jsonbin.io</b> и заведите бесплатный аккаунт.</li>
@@ -236,3 +237,54 @@ ACT.restorebackup = () => {
 CHG.synckey = (t) => { SC.apiKey = t.value.trim(); saveSC(); };
 CHG.syncbin = (t) => { SC.binId = t.value.trim(); saveSC(); };
 CHG.syncauto = (t) => { SC.auto = t.checked; saveSC(); };
+
+// ---- резервная копия в файл ----
+function backupJson() {
+  return JSON.stringify({ app: 'planner', v: 1, exportedAt: new Date().toISOString(), data: S }, null, 1);
+}
+// Возвращает текст ошибки или '' при успехе. Текущие данные перед заменой сохраняются в копию на устройстве.
+function importBackupText(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch (e) { return 'Это не файл резервной копии (не удалось прочитать).'; }
+  const data = obj && obj.app === 'planner' ? obj.data : obj;   // принимаем и обёртку, и «голые» данные
+  if (!validRec(data)) return 'В файле нет данных планировщика.';
+  backupLocal();
+  takeData(data);
+  lastHash = null;                                               // следующий save() увидит правку и отправит её в облако
+  S.rev = Math.max(S.rev || 0, SC.base || 0);
+  return '';
+}
+let backupMsg = '';
+function backupCardHtml() {
+  return `<div class="card" style="max-width:680px"><h2 style="font-size:20px">Резервная копия</h2>
+<div class="sub" style="margin:0">Скачайте все ваши данные одним файлом: цели, калории, тренировки, список упражнений. Файл можно сохранить на компьютер или в облачный диск и загрузить обратно, если что-то пойдёт не так.</div>
+<div class="row"><button type="button" class="btn" data-act="exportdata">Скачать копию</button>
+<label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">Загрузить из файла<input type="file" accept=".json,application/json" data-chg="importfile" style="position:absolute;width:1px;height:1px;opacity:0" aria-label="Загрузить резервную копию из файла"></label></div>
+${backupMsg ? `<div class="sub" style="margin:0" role="status">${esc(backupMsg)}</div>` : ''}
+<div style="font-size:12px;color:var(--muted);line-height:1.5">При загрузке текущие данные на этом устройстве заменяются данными из файла (их копия на всякий случай остаётся в памяти устройства). Если включена синхронизация, новые данные уйдут и в облако.</div></div>`;
+}
+ACT.exportdata = () => {
+  const blob = new Blob([backupJson()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'planner-backup-' + TODAY + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  backupMsg = 'Файл ' + a.download + ' сохранён в загрузки.';
+};
+CHG.importfile = (t) => {
+  const f = t.files && t.files[0];
+  if (!f) return 'keep';
+  const rd = new FileReader();
+  rd.onload = () => {
+    if (!confirm('Заменить данные на этом устройстве данными из файла «' + f.name + '»?')) { backupMsg = 'Загрузка отменена.'; render(); return; }
+    const err = importBackupText(String(rd.result));
+    backupMsg = err || 'Данные загружены из файла «' + f.name + '».';
+    if (!err) save();
+    render();
+  };
+  rd.onerror = () => { backupMsg = 'Не удалось прочитать файл.'; render(); };
+  rd.readAsText(f);
+  t.value = '';
+  return 'keep';
+};
