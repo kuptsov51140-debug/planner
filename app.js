@@ -54,11 +54,14 @@ if (!S) S = seed();
 // Отпечаток данных без служебных полей интерфейса: вкладка, месяц и выбранная цель
 // не считаются изменением, чтобы простая навигация не запускала отправку в облако.
 // Служебные поля экрана (выбранные даты, период, вкладка) тоже не считаются правкой данных.
-const dataHash = () => {
-  const { tab, sel, y, m, updatedAt, rev, ...rest } = S;
+const dataHash = (source = S) => {
+  const { tab, sel, y, m, updatedAt, rev, ...rest } = source;
   if (rest.cal) { const { date, meal, range, ...c } = rest.cal; rest.cal = c; }
   if (rest.wo) { const { sel: ws, pick, range, ...w } = rest.wo; rest.wo = w; }
-  return JSON.stringify(rest);
+  return JSON.stringify(rest, (key, value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.keys(value).sort().map(name => [name, value[name]]));
+  });
 };
 let lastHash = null;
 const save = () => {

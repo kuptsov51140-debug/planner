@@ -40,18 +40,22 @@ async function jb(path, opts) {
   } finally { clearTimeout(timer); }
 }
 async function getRemote() {
-  const res = await jb('/' + SC.binId + '/latest', { headers: { 'X-Master-Key': SC.apiKey } });
+  const res = await jb('/' + SC.binId + '/latest', { cache: 'no-store', headers: { 'X-Master-Key': SC.apiKey } });
   const d = await res.json();
   return d && d.record && typeof d.record === 'object' ? d.record : null;
 }
-async function putRemote() {
-  S.rev = S.rev || 0;
+async function putRemote(remote) {
+  const snapshot = JSON.parse(JSON.stringify(S));
+  snapshot.rev = Math.max(snapshot.rev || 0, (remote && remote.rev || 0) + 1);
+  S.rev = snapshot.rev;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
   await jb('/' + SC.binId, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-Master-Key': SC.apiKey, 'X-Bin-Versioning': 'false' },
-    body: JSON.stringify(S)
+    body: JSON.stringify(snapshot)
   });
-  SC.base = S.rev;
+  SC.base = snapshot.rev;
+  SC.baseHash = dataHash(snapshot);
 }
 
 // ---- данные из облака вместо локальных (локальные настройки экрана не трогаем) ----
@@ -73,15 +77,17 @@ function decide(rec, force) {
   if (!validRec(rec)) { if (force) throw new Error('empty'); return 'push'; }
   if (force) return 'apply';
   const rr = rec.rev || 0, lr = S.rev || 0;
-  if (SC.base == null) {                                   // первая сверка после обновления приложения
-    const rt = rec.updatedAt || 0, lt = S.updatedAt || 0;
-    if (rt > lt) return 'apply';
-    if (lt > rt) { S.rev = Math.max(lr, rr) + 1; return 'push'; }
-    SC.base = rr; S.rev = Math.max(lr, rr); return 'none';
+  const remoteHash = dataHash(rec), localHash = dataHash();
+  if (remoteHash === localHash) {
+    SC.base = rr; SC.baseHash = remoteHash; S.rev = rr;
+    return 'none';
   }
-  if (rr === SC.base) return lr > SC.base ? 'push' : 'none';
-  if (rr > SC.base) return lr === SC.base ? 'apply' : 'conflict';
-  return 'push';                                           // облако «отстало» (пересоздано): наши данные главнее
+  if (SC.base == null) return 'conflict';
+  const remoteChanged = rr !== SC.base || (SC.baseHash != null && remoteHash !== SC.baseHash);
+  const localChanged = lr !== SC.base || (SC.baseHash != null && localHash !== SC.baseHash);
+  if (remoteChanged) return localChanged || rr <= SC.base ? 'conflict' : 'apply';
+  if (localChanged) return 'push';
+  return 'conflict';
 }
 
 let pushTimer = null, retryTimer = null, retryN = 0, lastPullAt = 0, again = false;
@@ -95,7 +101,7 @@ async function syncCycle(mode) {
   let applied = false;
   try {
     if (mode === 'push') {
-      await putRemote();
+      await putRemote(await getRemote());
     } else {
       const rec = await getRemote();
       lastPullAt = Date.now();
@@ -103,9 +109,9 @@ async function syncCycle(mode) {
       if (act === 'apply' || act === 'conflict') {
         if (act === 'conflict' || mode === 'pull') backupLocal();
         if (act === 'conflict') SC.conflict = Date.now();
-        takeData(rec); SC.base = S.rev || 0; applied = true;
+        takeData(rec); SC.base = S.rev || 0; SC.baseHash = dataHash(); applied = true;
       } else if (act === 'push') {
-        await putRemote();
+        await putRemote(rec);
       }
     }
     SC.status = 'ok'; SC.err = ''; SC.last = Date.now(); retryN = 0;
@@ -114,6 +120,7 @@ async function syncCycle(mode) {
     scheduleRetry();
   }
   SC.busy = false; saveSC();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
   if (typeof render === 'function' && (applied || S.tab === 'sync')) render();
   if (again) { again = false; scheduleSync(); }
 }
@@ -134,14 +141,15 @@ async function syncCreate() {
   SC.busy = true; SC.status = 'push'; rerenderSync();
   try {
     S.rev = S.rev || 0;
+    const snapshot = JSON.parse(JSON.stringify(S));
     const res = await jb('', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': SC.apiKey, 'X-Bin-Name': 'planner', 'X-Bin-Private': 'true' },
-      body: JSON.stringify(S)
+      body: JSON.stringify(snapshot)
     });
     const data = await res.json();
     SC.binId = (data.metadata && data.metadata.id) || '';
-    SC.base = S.rev; SC.status = 'ok'; SC.err = ''; SC.last = Date.now();
+    SC.base = snapshot.rev; SC.baseHash = dataHash(snapshot); SC.status = 'ok'; SC.err = ''; SC.last = Date.now();
   } catch (e) {
     SC.status = 'err'; SC.err = String((e && e.message) || e);
   }
@@ -174,6 +182,7 @@ function syncLine() {
     return 'Не получилось: ' + esc(e || 'ошибка') + '.' + hint + ' Последняя удачная синхронизация: ' + when + '.' + used;
   }
   if (!syncReady()) return 'Синхронизация не настроена.';
+  if (SC.baseHash != null && dataHash() !== SC.baseHash) return 'Есть неотправленные изменения на этом устройстве. Последняя синхронизация: ' + when + '.' + used;
   return 'Последняя синхронизация: ' + when + '.' + used;
 }
 
@@ -198,8 +207,8 @@ ${backupCardHtml()}
 <li>Скопируйте появившийся ID хранилища и на ВТОРОМ устройстве вставьте тот же ключ и этот ID, затем нажмите «Подключиться».</li>
 </ol>
 <div class="row" style="margin-top:4px">
-<label class="cap fld" style="flex:1;min-width:240px">API-ключ (X-Master-Key)<input type="text" spellcheck="false" value="${esc(SC.apiKey)}" placeholder="$2a$10$…" data-chg="synckey" aria-label="API-ключ"></label>
-<label class="cap fld" style="flex:1;min-width:240px">ID хранилища<input type="text" spellcheck="false" value="${esc(SC.binId)}" placeholder="появится после создания" data-chg="syncbin" aria-label="ID хранилища"></label>
+<label class="cap fld" style="flex:1;min-width:240px">API-ключ (X-Master-Key)<input type="text" spellcheck="false" value="${esc(SC.apiKey)}" placeholder="$2a$10$…" data-chg="synckey" aria-label="API-ключ" ${SC.busy ? 'disabled' : ''}></label>
+<label class="cap fld" style="flex:1;min-width:240px">ID хранилища<input type="text" spellcheck="false" value="${esc(SC.binId)}" placeholder="появится после создания" data-chg="syncbin" aria-label="ID хранилища" ${SC.busy ? 'disabled' : ''}></label>
 </div>
 <div class="row">
 <button type="button" class="btn ghost" data-act="synccreate" ${SC.apiKey && !SC.busy ? '' : 'disabled'}>Создать хранилище</button>
@@ -234,8 +243,19 @@ ACT.restorebackup = () => {
   S.rev = Math.max(S.rev || 0, SC.base || 0);
   SC.conflict = 0; saveSC();
 };
-CHG.synckey = (t) => { SC.apiKey = t.value.trim(); saveSC(); };
-CHG.syncbin = (t) => { SC.binId = t.value.trim(); saveSC(); };
+function changeSyncSetting(name, value) {
+  const next = value.trim();
+  if (SC[name] === next) return;
+  SC[name] = next;
+  delete SC.base; delete SC.baseHash;
+  SC.last = 0; SC.status = ''; SC.err = ''; SC.conflict = 0;
+  lastPullAt = 0;
+  clearTimeout(pushTimer); pushTimer = null;
+  clearTimeout(retryTimer); retryTimer = null;
+  saveSC();
+}
+CHG.synckey = (t) => { changeSyncSetting('apiKey', t.value); };
+CHG.syncbin = (t) => { changeSyncSetting('binId', t.value); };
 CHG.syncauto = (t) => { SC.auto = t.checked; saveSC(); };
 
 // ---- резервная копия в файл ----
